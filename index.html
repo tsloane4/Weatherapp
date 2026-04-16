@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Construction Weather Risk Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0e1117;
+  --surface: #161b27;
+  --surface2: #1e2535;
+  --border: #2a3348;
+  --text: #e8eaf2;
+  --muted: #6b7a99;
+  --accent: #4f8ef7;
+  --cold: #60c4f5;
+  --snow: #a8d8ff;
+  --heat: #ff8c42;
+  --wind: #8de8b4;
+  --warn: #ffd166;
+  --danger: #ef4565;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; min-height: 100vh; }
+
+/* ── Header ── */
+.header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.header-title { font-size: 13px; font-family: var(--mono); color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+.header-main { font-size: 22px; font-weight: 600; color: var(--text); }
+.station-badge { font-family: var(--mono); font-size: 11px; background: var(--surface2); border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; color: var(--muted); }
+
+/* ── Upload zone ── */
+.upload-zone { margin: 20px 24px; border: 2px dashed var(--border); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: border-color .2s; }
+.upload-zone:hover, .upload-zone.drag { border-color: var(--accent); }
+.upload-zone input { display: none; }
+.upload-label { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.upload-label span { color: var(--accent); cursor: pointer; text-decoration: underline; }
+.upload-status { font-family: var(--mono); font-size: 11px; color: var(--wind); margin-top: 6px; }
+
+/* ── Nav tabs ── */
+.tabs { display: flex; gap: 2px; padding: 0 24px; border-bottom: 1px solid var(--border); }
+.tab { font-family: var(--mono); font-size: 12px; padding: 10px 18px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s; white-space: nowrap; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.tab.t-cold { }
+.tab.t-snow { }
+.tab.t-heat { }
+.tab.t-wind { }
+
+/* ── Content panels ── */
+.panels { padding: 20px 24px; }
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ── Season/year selector row ── */
+.selector-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.selector-row label { font-family: var(--mono); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.season-btns { display: flex; flex-wrap: wrap; gap: 4px; }
+.sbtn { font-family: var(--mono); font-size: 11px; padding: 4px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; cursor: pointer; color: var(--muted); transition: all .12s; }
+.sbtn:hover { color: var(--text); border-color: var(--muted); }
+.sbtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.sbtn.partial { border-style: dashed; }
+
+/* ── Summary cards ── */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; }
+.card-label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 4px; }
+.card-value { font-size: 26px; font-weight: 600; font-family: var(--mono); line-height: 1; }
+.card-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.c-cold .card-value { color: var(--cold); }
+.c-snow .card-value { color: var(--snow); }
+.c-heat .card-value { color: var(--heat); }
+.c-wind .card-value { color: var(--wind); }
+.c-warn .card-value { color: var(--warn); }
+
+/* ── Chart container ── */
+.chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 18px; position: relative; }
+.chart-title { font-family: var(--mono); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 14px; }
+.chart-inner { position: relative; height: 220px; }
+
+/* ── Data table ── */
+.data-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11.5px; }
+.data-table th { text-align: right; padding: 7px 8px; color: var(--muted); font-weight: 400; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.data-table th:first-child, .data-table th:nth-child(2) { text-align: left; }
+.data-table td { text-align: right; padding: 6px 8px; border-bottom: 1px solid rgba(42,51,72,.5); }
+.data-table td:first-child, .data-table td:nth-child(2) { text-align: left; color: var(--muted); }
+.data-table tr.total-row td { border-top: 1px solid var(--border); font-weight: 600; color: var(--text); }
+.data-table tr:hover td { background: var(--surface2); }
+.pct { color: var(--muted); font-size: 10px; }
+.tbl-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.tbl-scroll { overflow-x: auto; }
+.tbl-header { font-family: var(--mono); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; padding: 12px 14px 0; }
+
+/* ── Legend ── */
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 12px; }
+.leg-item { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.leg-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+/* ── Notes ── */
+.note { font-family: var(--mono); font-size: 10.5px; color: var(--muted); background: var(--surface2); border-left: 3px solid var(--border); padding: 8px 12px; border-radius: 0 4px 4px 0; margin-top: 14px; line-height: 1.6; }
+.note strong { color: var(--text); }
+
+/* ── Two-col layout ── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media(max-width:700px) { .two-col { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">Construction Weather Risk Analysis</div>
+    <div class="header-main" id="dashTitle">Medina, NY — Orleans County</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <div class="station-badge" id="stationBadge">Snow: USC00305236 · Temp/Wind: USW00014768</div>
+    <div class="station-badge" id="yearRangeBadge">2015-16 → 2025-26</div>
+  </div>
+</div>
+
+<div class="upload-zone" id="uploadZone">
+  <input type="file" id="csvInput" accept=".csv" multiple>
+  <div class="upload-label">Drop CSV file(s) here or <span onclick="document.getElementById('csvInput').click()">browse</span> to replicate for a new project</div>
+  <div class="upload-status" id="uploadStatus">Using embedded Medina/Rochester dataset</div>
+</div>
+
+<div class="tabs">
+  <div class="tab t-cold active" onclick="showTab('cold')">❄ Cold Temps</div>
+  <div class="tab t-snow" onclick="showTab('snow')">Snow Depth</div>
+  <div class="tab t-heat" onclick="showTab('heat')">☀ Heat</div>
+  <div class="tab t-wind" onclick="showTab('wind')">Wind</div>
+</div>
+
+<div class="panels">
+
+  <!-- ── COLD ── -->
+  <div class="panel active" id="panel-cold">
+    <div class="selector-row">
+      <label>Season</label>
+      <div class="season-btns" id="cold-seasons"></div>
+    </div>
+    <div class="cards" id="cold-cards"></div>
+    <div class="two-col">
+      <div class="chart-wrap">
+        <div class="chart-title">Working hours below threshold — all seasons</div>
+        <div class="legend">
+          <div class="leg-item"><div class="leg-dot" style="background:#60c4f5"></div>Below 32°F</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#3a8fbf"></div>Below 25°F</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#1a5a80"></div>Below 20°F</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#0d3350"></div>Below 15°F</div>
+        </div>
+        <div class="chart-inner"><canvas id="coldTrendChart"></canvas></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-title">Monthly breakdown — selected season</div>
+        <div class="chart-inner"><canvas id="coldMonthChart"></canvas></div>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-header" id="cold-tbl-header">Monthly detail</div>
+      <div class="tbl-scroll"><table class="data-table" id="cold-table"></table></div>
+    </div>
+    <div class="note"><strong>Temp source:</strong> Rochester Airport (USW00014768) · <strong>Method:</strong> Sinusoidal daily cycle between observed TMAX/TMIN; fraction of 7am–5pm workday below threshold · Working days = Mon–Fri only</div>
+  </div>
+
+  <!-- ── SNOW ── -->
+  <div class="panel" id="panel-snow">
+    <div class="selector-row">
+      <label>Season</label>
+      <div class="season-btns" id="snow-seasons"></div>
+    </div>
+    <div class="cards" id="snow-cards"></div>
+    <div class="two-col">
+      <div class="chart-wrap">
+        <div class="chart-title">Season total snowfall (inches) — all seasons</div>
+        <div class="chart-inner"><canvas id="snowTotalChart"></canvas></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-title">Weekdays with snow depth ≥ threshold — all seasons</div>
+        <div class="legend">
+          <div class="leg-item"><div class="leg-dot" style="background:#a8d8ff"></div>5"+</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#5aadee"></div>10"+</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#2270aa"></div>15"+</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#0d3a60"></div>20"+</div>
+        </div>
+        <div class="chart-inner"><canvas id="snowDepthChart"></canvas></div>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-header" id="snow-tbl-header">Monthly detail</div>
+      <div class="tbl-scroll"><table class="data-table" id="snow-table"></table></div>
+    </div>
+    <div class="note"><strong>Snow source:</strong> Medina COOP (USC00305236) — unmanaged rural site, direct proxy for construction site conditions · SNWD = measured snow depth on ground each morning · Counts weekdays ≥ threshold as equipment-impaired days</div>
+  </div>
+
+  <!-- ── HEAT ── -->
+  <div class="panel" id="panel-heat">
+    <div class="selector-row">
+      <label>Year</label>
+      <div class="season-btns" id="heat-seasons"></div>
+    </div>
+    <div class="cards" id="heat-cards"></div>
+    <div class="two-col">
+      <div class="chart-wrap">
+        <div class="chart-title">Season heat hours above threshold — all years</div>
+        <div class="legend">
+          <div class="leg-item"><div class="leg-dot" style="background:#ffb347"></div>Above 80°F (initial trigger)</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#ff6b35"></div>Above 90°F (high heat trigger)</div>
+        </div>
+        <div class="chart-inner"><canvas id="heatTrendChart"></canvas></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-title">Monthly breakdown — selected year</div>
+        <div class="chart-inner"><canvas id="heatMonthChart"></canvas></div>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-header" id="heat-tbl-header">Monthly detail</div>
+      <div class="tbl-scroll"><table class="data-table" id="heat-table"></table></div>
+    </div>
+    <div class="note"><strong>Source:</strong> Rochester Airport · <strong>Thresholds:</strong> OSHA 2024 proposed rule — 80°F heat index: basic protections required; 90°F: mandatory 15-min rest break every 2 hrs · Dry-bulb temp used; actual heat index with humidity would increase hours</div>
+  </div>
+
+  <!-- ── WIND ── -->
+  <div class="panel" id="panel-wind">
+    <div class="selector-row">
+      <label>Period</label>
+      <div class="season-btns" id="wind-seasons"></div>
+    </div>
+    <div class="cards" id="wind-cards"></div>
+    <div class="two-col">
+      <div class="chart-wrap">
+        <div class="chart-title">Weekdays with avg wind ≥ threshold — all seasons/years</div>
+        <div class="legend">
+          <div class="leg-item"><div class="leg-dot" style="background:#8de8b4"></div>≥5 mph</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#42c47a"></div>≥10 mph</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#1a7a44"></div>≥15 mph</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#0a3d22"></div>≥20 mph</div>
+        </div>
+        <div class="chart-inner"><canvas id="windTrendChart"></canvas></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-title">Monthly breakdown — selected period</div>
+        <div class="chart-inner"><canvas id="windMonthChart"></canvas></div>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-header" id="wind-tbl-header">Monthly detail</div>
+      <div class="tbl-scroll"><table class="data-table" id="wind-table"></table></div>
+    </div>
+    <div class="note"><strong>Source:</strong> Rochester Airport AWND (average daily wind speed, mph) · Wind days = weekdays where daily average wind ≥ threshold · Many crane/lift operations restricted above 20–25 mph sustained; material handling impacted above 15 mph</div>
+  </div>
+
+</div><!-- /panels -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const DB = {"snow": {"2015-16": {"Nov": {"mn": "Nov", "si": 0.2, "wd": 21, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Dec": {"mn": "Dec", "si": 1.4, "wd": 23, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Jan": {"mn": "Jan", "si": 15.8, "wd": 21, "d5": 3, "p5": 14.3, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Feb": {"mn": "Feb", "si": 23.6, "wd": 21, "d5": 5, "p5": 23.8, "d10": 3, "p10": 14.3, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Mar": {"mn": "Mar", "si": 2.4, "wd": 23, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Apr": {"mn": "Apr", "si": 4.8, "wd": 21, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Total": {"mn": "Total", "si": 48.2, "wd": 130, "d5": 8, "p5": 6.2, "d10": 3, "p10": 2.3, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}}, "2016-17": {"Nov": {"mn": "Nov", "si": 2.4, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Dec": {"mn": "Dec", "si": 18.4, "wd": 22, "d5": 4, "p5": 18.2, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Jan": {"mn": "Jan", "si": 7.9, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Feb": {"mn": "Feb", "si": 11.7, "wd": 20, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Mar": {"mn": "Mar", "si": 27.0, "wd": 23, "d5": 5, "p5": 21.7, "d10": 3, "p10": 13.0, "d15": 3, "p15": 13.0, "d20": 0, "p20": 0.0}, "Apr": {"mn": "Apr", "si": 4.2, "wd": 20, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Total": {"mn": "Total", "si": 71.6, "wd": 129, "d5": 9, "p5": 7.0, "d10": 3, "p10": 2.3, "d15": 3, "p15": 2.3, "d20": 0, "p20": 0.0}}, "2017-18": {"Nov": {"mn": "Nov", "si": 0.5, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Dec": {"mn": "Dec", "si": 26.8, "wd": 21, "d5": 9, "p5": 42.9, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Jan": {"mn": "Jan", "si": 27.9, "wd": 23, "d5": 14, "p5": 60.9, "d10": 2, "p10": 8.7, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Feb": {"mn": "Feb", "si": 17.2, "wd": 20, "d5": 6, "p5": 30.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Mar": {"mn": "Mar", "si": 18.8, "wd": 22, "d5": 6, "p5": 27.3, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Apr": {"mn": "Apr", "si": 2.6, "wd": 21, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Total": {"mn": "Total", "si": 93.8, "wd": 129, "d5": 35, "p5": 27.1, "d10": 2, "p10": 1.6, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}}, "2018-19": {"Nov": {"mn": "Nov", "si": 11.7, "wd": 22, "d5": 2, "p5": 9.1, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Dec": {"mn": "Dec", "si": 9.7, "wd": 21, "d5": 1, "p5": 4.8, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Jan": {"mn": "Jan", "si": 28.6, "wd": 23, "d5": 9, "p5": 39.1, "d10": 5, "p10": 21.7, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Feb": {"mn": "Feb", "si": 16.0, "wd": 20, "d5": 2, "p5": 10.0, "d10": 1, "p10": 5.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Mar": {"mn": "Mar", "si": 10.1, "wd": 21, "d5": 6, "p5": 28.6, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Apr": {"mn": "Apr", "si": 4.4, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Total": {"mn": "Total", "si": 80.5, "wd": 129, "d5": 20, "p5": 15.5, "d10": 6, "p10": 4.7, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}}, "2019-20": {"Nov": {"mn": "Nov", "si": 12.0, "wd": 21, "d5": 4, "p5": 19.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Dec": {"mn": "Dec", "si": 17.6, "wd": 22, "d5": 4, "p5": 18.2, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Jan": {"mn": "Jan", "si": 9.1, "wd": 23, "d5": 1, "p5": 4.3, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Feb": {"mn": "Feb", "si": 19.4, "wd": 20, "d5": 2, "p5": 10.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Mar": {"mn": "Mar", "si": 2.7, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Apr": {"mn": "Apr", "si": 0.3, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Total": {"mn": "Total", "si": 61.1, "wd": 130, "d5": 11, "p5": 8.5, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}}, "2020-21": {"Nov": {"mn": "Nov", "si": 0.5, "wd": 21, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Dec": {"mn": "Dec", "si": 5.4, "wd": 23, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Jan": {"mn": "Jan", "si": 7.4, "wd": 21, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Feb": {"mn": "Feb", "si": 21.8, "wd": 20, "d5": 18, "p5": 90.0, "d10": 6, "p10": 30.0, "d15": 1, "p15": 5.0, "d20": 0, "p20": 0.0}, "Mar": {"mn": "Mar", "si": 0.0, "wd": 23, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Apr": {"mn": "Apr", "si": 4.5, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Total": {"mn": "Total", "si": 39.6, "wd": 130, "d5": 18, "p5": 13.8, "d10": 6, "p10": 4.6, "d15": 1, "p15": 0.8, "d20": 0, "p20": 0.0}}, "2021-22": {"Nov": {"mn": "Nov", "si": 1.5, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Dec": {"mn": "Dec", "si": 5.4, "wd": 23, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Jan": {"mn": "Jan", "si": 20.9, "wd": 21, "d5": 11, "p5": 52.4, "d10": 11, "p10": 52.4, "d15": 1, "p15": 4.8, "d20": 0, "p20": 0.0}, "Feb": {"mn": "Feb", "si": 23.0, "wd": 20, "d5": 12, "p5": 60.0, "d10": 9, "p10": 45.0, "d15": 1, "p15": 5.0, "d20": 0, "p20": 0.0}, "Mar": {"mn": "Mar", "si": 5.3, "wd": 23, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Apr": {"mn": "Apr", "si": 0.0, "wd": 21, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Total": {"mn": "Total", "si": 56.1, "wd": 130, "d5": 23, "p5": 17.7, "d10": 20, "p10": 15.4, "d15": 2, "p15": 1.5, "d20": 0, "p20": 0.0}}, "2022-23": {"Nov": {"mn": "Nov", "si": 5.1, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Dec": {"mn": "Dec", "si": 18.3, "wd": 22, "d5": 3, "p5": 13.6, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Jan": {"mn": "Jan", "si": 6.9, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Feb": {"mn": "Feb", "si": 5.5, "wd": 20, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Mar": {"mn": "Mar", "si": 12.4, "wd": 23, "d5": 4, "p5": 17.4, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Apr": {"mn": "Apr", "si": 0.0, "wd": 20, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Total": {"mn": "Total", "si": 48.2, "wd": 129, "d5": 7, "p5": 5.4, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}}, "2023-24": {"Nov": {"mn": "Nov", "si": 0.3, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Dec": {"mn": "Dec", "si": 5.1, "wd": 21, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Jan": {"mn": "Jan", "si": 19.4, "wd": 22, "d5": 4, "p5": 18.2, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Feb": {"mn": "Feb", "si": 8.4, "wd": 21, "d5": 1, "p5": 4.8, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Mar": {"mn": "Mar", "si": 4.6, "wd": 21, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Apr": {"mn": "Apr", "si": 0.5, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Total": {"mn": "Total", "si": 38.3, "wd": 129, "d5": 5, "p5": 3.9, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}}, "2024-25": {"Nov": {"mn": "Nov", "si": 0.0, "wd": 21, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Dec": {"mn": "Dec", "si": 13.3, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Jan": {"mn": "Jan", "si": 16.4, "wd": 23, "d5": 2, "p5": 8.7, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Feb": {"mn": "Feb", "si": 21.3, "wd": 20, "d5": 6, "p5": 30.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Mar": {"mn": "Mar", "si": 0.1, "wd": 21, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Apr": {"mn": "Apr", "si": 0.3, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Total": {"mn": "Total", "si": 51.4, "wd": 129, "d5": 8, "p5": 6.2, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}}, "2025-26": {"Nov": {"mn": "Nov", "si": 9.5, "wd": 20, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Dec": {"mn": "Dec", "si": 9.8, "wd": 23, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Jan": {"mn": "Jan", "si": 33.1, "wd": 22, "d5": 7, "p5": 31.8, "d10": 5, "p10": 22.7, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Feb": {"mn": "Feb", "si": 12.7, "wd": 20, "d5": 13, "p5": 65.0, "d10": 9, "p10": 45.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Mar": {"mn": "Mar", "si": 2.0, "wd": 22, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Apr": {"mn": "Apr", "si": 0.1, "wd": 8, "d5": 0, "p5": 0.0, "d10": 0, "p10": 0.0, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}, "Total": {"mn": "Total", "si": 67.2, "wd": 115, "d5": 20, "p5": 17.4, "d10": 14, "p10": 12.2, "d15": 0, "p15": 0.0, "d20": 0, "p20": 0.0}}}, "cold": {"2015-16": {"Nov": {"mn": "Nov", "wd": 0, "wh": 0, "h32": 0.0, "p32": 0, "h25": 0.0, "p25": 0, "h20": 0.0, "p20": 0, "h15": 0.0, "p15": 0}, "Dec": {"mn": "Dec", "wd": 0, "wh": 0, "h32": 0.0, "p32": 0, "h25": 0.0, "p25": 0, "h20": 0.0, "p20": 0, "h15": 0.0, "p15": 0}, "Jan": {"mn": "Jan", "wd": 21, "wh": 210, "h32": 157.5, "p32": 75.0, "h25": 115.2, "p25": 54.9, "h20": 62.5, "p20": 29.8, "h15": 22.3, "p15": 10.6}, "Feb": {"mn": "Feb", "wd": 21, "wh": 210, "h32": 119.9, "p32": 57.1, "h25": 69.2, "p25": 33.0, "h20": 45.6, "p20": 21.7, "h15": 24.8, "p15": 11.8}, "Mar": {"mn": "Mar", "wd": 23, "wh": 230, "h32": 56.3, "p32": 24.5, "h25": 22.5, "p25": 9.8, "h20": 6.2, "p20": 2.7, "h15": 0.0, "p15": 0.0}, "Apr": {"mn": "Apr", "wd": 21, "wh": 210, "h32": 41.1, "p32": 19.6, "h25": 14.0, "p25": 6.7, "h20": 6.2, "p20": 3.0, "h15": 0.8, "p15": 0.4}, "Total": {"mn": "Total", "wd": 86, "wh": 860, "h32": 374.9, "p32": 43.6, "h25": 220.9, "p25": 25.7, "h20": 120.6, "p20": 14.0, "h15": 47.9, "p15": 5.6}}, "2016-17": {"Nov": {"mn": "Nov", "wd": 22, "wh": 220, "h32": 14.0, "p32": 6.4, "h25": 0.0, "p25": 0.0, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Dec": {"mn": "Dec", "wd": 22, "wh": 220, "h32": 103.2, "p32": 46.9, "h25": 43.8, "p25": 19.9, "h20": 28.4, "p20": 12.9, "h15": 11.8, "p15": 5.4}, "Jan": {"mn": "Jan", "wd": 22, "wh": 220, "h32": 85.6, "p32": 38.9, "h25": 59.0, "p25": 26.8, "h20": 32.2, "p20": 14.6, "h15": 8.9, "p15": 4.0}, "Feb": {"mn": "Feb", "wd": 20, "wh": 200, "h32": 94.4, "p32": 47.2, "h25": 46.0, "p25": 23.0, "h20": 19.5, "p20": 9.8, "h15": 2.5, "p15": 1.2}, "Mar": {"mn": "Mar", "wd": 23, "wh": 230, "h32": 94.4, "p32": 41.0, "h25": 62.9, "p25": 27.3, "h20": 30.7, "p20": 13.3, "h15": 3.8, "p15": 1.7}, "Apr": {"mn": "Apr", "wd": 20, "wh": 200, "h32": 0.0, "p32": 0.0, "h25": 0.0, "p25": 0.0, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Total": {"mn": "Total", "wd": 129, "wh": 1290, "h32": 391.7, "p32": 30.4, "h25": 211.7, "p25": 16.4, "h20": 110.9, "p20": 8.6, "h15": 26.9, "p15": 2.1}}, "2017-18": {"Nov": {"mn": "Nov", "wd": 22, "wh": 220, "h32": 37.5, "p32": 17.0, "h25": 4.8, "p25": 2.2, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Dec": {"mn": "Dec", "wd": 21, "wh": 210, "h32": 145.8, "p32": 69.4, "h25": 82.7, "p25": 39.4, "h20": 72.1, "p20": 34.3, "h15": 42.8, "p15": 20.4}, "Jan": {"mn": "Jan", "wd": 23, "wh": 230, "h32": 149.2, "p32": 64.9, "h25": 110.9, "p25": 48.2, "h20": 76.3, "p20": 33.2, "h15": 44.3, "p15": 19.3}, "Feb": {"mn": "Feb", "wd": 20, "wh": 200, "h32": 95.1, "p32": 47.5, "h25": 64.8, "p25": 32.4, "h20": 38.6, "p20": 19.3, "h15": 14.0, "p15": 7.0}, "Mar": {"mn": "Mar", "wd": 22, "wh": 220, "h32": 113.2, "p32": 51.5, "h25": 27.6, "p25": 12.5, "h20": 3.7, "p20": 1.7, "h15": 0.0, "p15": 0.0}, "Apr": {"mn": "Apr", "wd": 21, "wh": 210, "h32": 31.1, "p32": 14.8, "h25": 3.0, "p25": 1.4, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Total": {"mn": "Total", "wd": 129, "wh": 1290, "h32": 571.8, "p32": 44.3, "h25": 293.7, "p25": 22.8, "h20": 190.8, "p20": 14.8, "h15": 101.0, "p15": 7.8}}, "2018-19": {"Nov": {"mn": "Nov", "wd": 22, "wh": 220, "h32": 64.4, "p32": 29.3, "h25": 21.2, "p25": 9.6, "h20": 18.0, "p20": 8.2, "h15": 10.2, "p15": 4.6}, "Dec": {"mn": "Dec", "wd": 21, "wh": 210, "h32": 93.6, "p32": 44.6, "h25": 25.2, "p25": 12.0, "h20": 3.2, "p20": 1.5, "h15": 0.0, "p15": 0.0}, "Jan": {"mn": "Jan", "wd": 23, "wh": 230, "h32": 162.3, "p32": 70.6, "h25": 109.0, "p25": 47.4, "h20": 79.2, "p20": 34.4, "h15": 50.4, "p15": 21.9}, "Feb": {"mn": "Feb", "wd": 20, "wh": 200, "h32": 117.0, "p32": 58.5, "h25": 67.6, "p25": 33.8, "h20": 39.2, "p20": 19.6, "h15": 18.7, "p15": 9.3}, "Mar": {"mn": "Mar", "wd": 21, "wh": 210, "h32": 94.4, "p32": 45.0, "h25": 57.3, "p25": 27.3, "h20": 41.5, "p20": 19.8, "h15": 25.8, "p15": 12.3}, "Apr": {"mn": "Apr", "wd": 22, "wh": 220, "h32": 13.9, "p32": 6.3, "h25": 1.0, "p25": 0.5, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Total": {"mn": "Total", "wd": 129, "wh": 1290, "h32": 545.6, "p32": 42.3, "h25": 281.3, "p25": 21.8, "h20": 181.1, "p20": 14.0, "h15": 105.1, "p15": 8.1}}, "2019-20": {"Nov": {"mn": "Nov", "wd": 21, "wh": 210, "h32": 69.8, "p32": 33.2, "h25": 24.9, "p25": 11.9, "h20": 11.0, "p20": 5.2, "h15": 3.2, "p15": 1.5}, "Dec": {"mn": "Dec", "wd": 22, "wh": 220, "h32": 115.0, "p32": 52.3, "h25": 51.3, "p25": 23.3, "h20": 30.3, "p20": 13.8, "h15": 11.9, "p15": 5.4}, "Jan": {"mn": "Jan", "wd": 23, "wh": 230, "h32": 134.0, "p32": 58.3, "h25": 65.4, "p25": 28.4, "h20": 39.1, "p20": 17.0, "h15": 17.7, "p15": 7.7}, "Feb": {"mn": "Feb", "wd": 20, "wh": 200, "h32": 120.3, "p32": 60.2, "h25": 53.2, "p25": 26.6, "h20": 22.8, "p20": 11.4, "h15": 11.0, "p15": 5.5}, "Mar": {"mn": "Mar", "wd": 22, "wh": 220, "h32": 16.9, "p32": 7.7, "h25": 1.9, "p25": 0.9, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Apr": {"mn": "Apr", "wd": 22, "wh": 220, "h32": 27.8, "p32": 12.6, "h25": 1.0, "p25": 0.5, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Total": {"mn": "Total", "wd": 130, "wh": 1300, "h32": 483.7, "p32": 37.2, "h25": 197.6, "p25": 15.2, "h20": 103.2, "p20": 7.9, "h15": 43.8, "p15": 3.4}}, "2020-21": {"Nov": {"mn": "Nov", "wd": 21, "wh": 210, "h32": 23.7, "p32": 11.3, "h25": 2.0, "p25": 1.0, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Dec": {"mn": "Dec", "wd": 23, "wh": 230, "h32": 92.8, "p32": 40.3, "h25": 37.6, "p25": 16.3, "h20": 9.8, "p20": 4.3, "h15": 1.9, "p15": 0.8}, "Jan": {"mn": "Jan", "wd": 21, "wh": 210, "h32": 130.7, "p32": 62.2, "h25": 51.4, "p25": 24.5, "h20": 23.7, "p20": 11.3, "h15": 9.5, "p15": 4.5}, "Feb": {"mn": "Feb", "wd": 20, "wh": 200, "h32": 163.3, "p32": 81.7, "h25": 106.6, "p25": 53.3, "h20": 58.6, "p20": 29.3, "h15": 28.1, "p15": 14.1}, "Mar": {"mn": "Mar", "wd": 23, "wh": 230, "h32": 73.2, "p32": 31.8, "h25": 34.5, "p25": 15.0, "h20": 15.2, "p20": 6.6, "h15": 3.1, "p15": 1.3}, "Apr": {"mn": "Apr", "wd": 22, "wh": 220, "h32": 19.1, "p32": 8.7, "h25": 0.0, "p25": 0.0, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Total": {"mn": "Total", "wd": 130, "wh": 1300, "h32": 502.8, "p32": 38.7, "h25": 232.1, "p25": 17.9, "h20": 107.2, "p20": 8.2, "h15": 42.5, "p15": 3.3}}, "2021-22": {"Nov": {"mn": "Nov", "wd": 22, "wh": 220, "h32": 27.4, "p32": 12.5, "h25": 1.8, "p25": 0.8, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Dec": {"mn": "Dec", "wd": 23, "wh": 230, "h32": 64.7, "p32": 28.1, "h25": 10.9, "p25": 4.7, "h20": 1.6, "p20": 0.7, "h15": 0.0, "p15": 0.0}, "Jan": {"mn": "Jan", "wd": 21, "wh": 210, "h32": 181.8, "p32": 86.6, "h25": 145.1, "p25": 69.1, "h20": 102.1, "p20": 48.6, "h15": 61.0, "p15": 29.0}, "Feb": {"mn": "Feb", "wd": 20, "wh": 200, "h32": 118.5, "p32": 59.2, "h25": 91.7, "p25": 45.9, "h20": 54.9, "p20": 27.4, "h15": 27.2, "p15": 13.6}, "Mar": {"mn": "Mar", "wd": 23, "wh": 230, "h32": 75.6, "p32": 32.9, "h25": 32.9, "p25": 14.3, "h20": 13.9, "p20": 6.0, "h15": 2.0, "p15": 0.9}, "Apr": {"mn": "Apr", "wd": 21, "wh": 210, "h32": 7.4, "p32": 3.5, "h25": 0.0, "p25": 0.0, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Total": {"mn": "Total", "wd": 130, "wh": 1300, "h32": 475.5, "p32": 36.6, "h25": 282.3, "p25": 21.7, "h20": 172.5, "p20": 13.3, "h15": 90.2, "p15": 6.9}}, "2022-23": {"Nov": {"mn": "Nov", "wd": 22, "wh": 220, "h32": 29.8, "p32": 13.5, "h25": 2.1, "p25": 1.0, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Dec": {"mn": "Dec", "wd": 22, "wh": 220, "h32": 117.3, "p32": 53.3, "h25": 40.0, "p25": 18.2, "h20": 12.9, "p20": 5.9, "h15": 4.8, "p15": 2.2}, "Jan": {"mn": "Jan", "wd": 22, "wh": 220, "h32": 89.4, "p32": 40.6, "h25": 16.8, "p25": 7.6, "h20": 4.6, "p20": 2.1, "h15": 0.0, "p15": 0.0}, "Feb": {"mn": "Feb", "wd": 20, "wh": 200, "h32": 99.1, "p32": 49.5, "h25": 42.5, "p25": 21.2, "h20": 19.1, "p20": 9.6, "h15": 9.5, "p15": 4.8}, "Mar": {"mn": "Mar", "wd": 23, "wh": 230, "h32": 79.4, "p32": 34.5, "h25": 8.5, "p25": 3.7, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Apr": {"mn": "Apr", "wd": 20, "wh": 200, "h32": 2.1, "p32": 1.1, "h25": 0.0, "p25": 0.0, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Total": {"mn": "Total", "wd": 129, "wh": 1290, "h32": 417.1, "p32": 32.3, "h25": 109.9, "p25": 8.5, "h20": 36.5, "p20": 2.8, "h15": 14.3, "p15": 1.1}}, "2023-24": {"Nov": {"mn": "Nov", "wd": 22, "wh": 220, "h32": 43.3, "p32": 19.7, "h25": 10.4, "p25": 4.7, "h20": 2.0, "p20": 0.9, "h15": 0.0, "p15": 0.0}, "Dec": {"mn": "Dec", "wd": 21, "wh": 210, "h32": 47.9, "p32": 22.8, "h25": 10.8, "p25": 5.1, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Jan": {"mn": "Jan", "wd": 23, "wh": 230, "h32": 110.3, "p32": 48.0, "h25": 56.0, "p25": 24.3, "h20": 35.8, "p20": 15.6, "h15": 15.7, "p15": 6.8}, "Feb": {"mn": "Feb", "wd": 21, "wh": 210, "h32": 82.8, "p32": 39.4, "h25": 32.1, "p25": 15.3, "h20": 7.7, "p20": 3.7, "h15": 1.4, "p15": 0.7}, "Mar": {"mn": "Mar", "wd": 21, "wh": 210, "h32": 47.0, "p32": 22.4, "h25": 14.5, "p25": 6.9, "h20": 3.0, "p20": 1.4, "h15": 0.0, "p15": 0.0}, "Apr": {"mn": "Apr", "wd": 22, "wh": 220, "h32": 2.7, "p32": 1.2, "h25": 0.0, "p25": 0.0, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Total": {"mn": "Total", "wd": 130, "wh": 1300, "h32": 334.1, "p32": 25.7, "h25": 123.9, "p25": 9.5, "h20": 48.5, "p20": 3.7, "h15": 17.1, "p15": 1.3}}, "2024-25": {"Nov": {"mn": "Nov", "wd": 21, "wh": 210, "h32": 7.1, "p32": 3.4, "h25": 0.0, "p25": 0.0, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Dec": {"mn": "Dec", "wd": 22, "wh": 220, "h32": 96.8, "p32": 44.0, "h25": 23.4, "p25": 10.6, "h20": 8.5, "p20": 3.9, "h15": 1.3, "p15": 0.6}, "Jan": {"mn": "Jan", "wd": 23, "wh": 230, "h32": 185.0, "p32": 80.4, "h25": 137.1, "p25": 59.6, "h20": 81.8, "p20": 35.6, "h15": 30.6, "p15": 13.3}, "Feb": {"mn": "Feb", "wd": 20, "wh": 200, "h32": 131.3, "p32": 65.7, "h25": 100.9, "p25": 50.5, "h20": 60.8, "p20": 30.4, "h15": 14.9, "p15": 7.4}, "Mar": {"mn": "Mar", "wd": 21, "wh": 210, "h32": 43.2, "p32": 20.6, "h25": 4.5, "p25": 2.1, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Apr": {"mn": "Apr", "wd": 22, "wh": 220, "h32": 20.9, "p32": 9.5, "h25": 5.0, "p25": 2.3, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Total": {"mn": "Total", "wd": 129, "wh": 1290, "h32": 484.3, "p32": 37.5, "h25": 270.9, "p25": 21.0, "h20": 151.1, "p20": 11.7, "h15": 46.8, "p15": 3.6}}, "2025-26": {"Nov": {"mn": "Nov", "wd": 20, "wh": 200, "h32": 39.1, "p32": 19.6, "h25": 2.0, "p25": 1.0, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Dec": {"mn": "Dec", "wd": 23, "wh": 230, "h32": 164.8, "p32": 71.7, "h25": 104.7, "p25": 45.5, "h20": 46.1, "p20": 20.0, "h15": 19.4, "p15": 8.4}, "Jan": {"mn": "Jan", "wd": 22, "wh": 220, "h32": 153.3, "p32": 69.7, "h25": 122.1, "p25": 55.5, "h20": 104.0, "p20": 47.3, "h15": 79.3, "p15": 36.0}, "Feb": {"mn": "Feb", "wd": 20, "wh": 200, "h32": 147.1, "p32": 73.5, "h25": 109.6, "p25": 54.8, "h20": 74.9, "p20": 37.5, "h15": 41.7, "p15": 20.9}, "Mar": {"mn": "Mar", "wd": 22, "wh": 220, "h32": 71.2, "p32": 32.4, "h25": 27.4, "p25": 12.5, "h20": 14.1, "p20": 6.4, "h15": 4.6, "p15": 2.1}, "Apr": {"mn": "Apr", "wd": 8, "wh": 80, "h32": 9.6, "p32": 12.0, "h25": 2.9, "p25": 3.6, "h20": 0.0, "p20": 0.0, "h15": 0.0, "p15": 0.0}, "Total": {"mn": "Total", "wd": 115, "wh": 1150, "h32": 585.1, "p32": 50.9, "h25": 368.8, "p25": 32.1, "h20": 239.1, "p20": 20.8, "h15": 144.9, "p15": 12.6}}}, "heat": {"2016": {"May": {"mn": "May", "wd": 22, "wh": 220, "h80": 34.5, "p80": 15.7, "h90": 0.0, "p90": 0.0}, "Jun": {"mn": "Jun", "wd": 22, "wh": 220, "h80": 39.4, "p80": 17.9, "h90": 4.2, "p90": 1.9}, "Jul": {"mn": "Jul", "wd": 21, "wh": 210, "h80": 128.4, "p80": 61.1, "h90": 26.8, "p90": 12.8}, "Aug": {"mn": "Aug", "wd": 23, "wh": 230, "h80": 133.1, "p80": 57.9, "h90": 30.3, "p90": 13.2}, "Sep": {"mn": "Sep", "wd": 22, "wh": 220, "h80": 59.7, "p80": 27.1, "h90": 4.2, "p90": 1.9}, "Total": {"mn": "Total", "wd": 110, "wh": 1100, "h80": 395.1, "p80": 35.9, "h90": 65.5, "p90": 6.0}}, "2017": {"May": {"mn": "May", "wd": 23, "wh": 230, "h80": 11.9, "p80": 5.2, "h90": 0.0, "p90": 0.0}, "Jun": {"mn": "Jun", "wd": 22, "wh": 220, "h80": 31.2, "p80": 14.2, "h90": 0.0, "p90": 0.0}, "Jul": {"mn": "Jul", "wd": 21, "wh": 210, "h80": 65.1, "p80": 31.0, "h90": 0.0, "p90": 0.0}, "Aug": {"mn": "Aug", "wd": 23, "wh": 230, "h80": 62.3, "p80": 27.1, "h90": 0.0, "p90": 0.0}, "Sep": {"mn": "Sep", "wd": 21, "wh": 210, "h80": 43.5, "p80": 20.7, "h90": 8.9, "p90": 4.2}, "Total": {"mn": "Total", "wd": 110, "wh": 1100, "h80": 213.8, "p80": 19.4, "h90": 8.9, "p90": 0.8}}, "2018": {"May": {"mn": "May", "wd": 23, "wh": 230, "h80": 48.6, "p80": 21.1, "h90": 3.9, "p90": 1.7}, "Jun": {"mn": "Jun", "wd": 21, "wh": 210, "h80": 41.7, "p80": 19.9, "h90": 5.0, "p90": 2.4}, "Jul": {"mn": "Jul", "wd": 22, "wh": 220, "h80": 123.3, "p80": 56.0, "h90": 25.1, "p90": 11.4}, "Aug": {"mn": "Aug", "wd": 23, "wh": 230, "h80": 92.9, "p80": 40.4, "h90": 14.4, "p90": 6.3}, "Sep": {"mn": "Sep", "wd": 20, "wh": 200, "h80": 47.5, "p80": 23.8, "h90": 14.4, "p90": 7.2}, "Total": {"mn": "Total", "wd": 109, "wh": 1090, "h80": 354.1, "p80": 32.5, "h90": 62.8, "p90": 5.8}}, "2019": {"May": {"mn": "May", "wd": 23, "wh": 230, "h80": 0.0, "p80": 0.0, "h90": 0.0, "p90": 0.0}, "Jun": {"mn": "Jun", "wd": 20, "wh": 200, "h80": 26.0, "p80": 13.0, "h90": 0.0, "p90": 0.0}, "Jul": {"mn": "Jul", "wd": 23, "wh": 230, "h80": 105.3, "p80": 45.8, "h90": 10.3, "p90": 4.5}, "Aug": {"mn": "Aug", "wd": 22, "wh": 220, "h80": 66.6, "p80": 30.3, "h90": 0.0, "p90": 0.0}, "Sep": {"mn": "Sep", "wd": 21, "wh": 210, "h80": 10.4, "p80": 5.0, "h90": 0.0, "p90": 0.0}, "Total": {"mn": "Total", "wd": 109, "wh": 1090, "h80": 208.3, "p80": 19.1, "h90": 10.3, "p90": 0.9}}, "2020": {"May": {"mn": "May", "wd": 21, "wh": 210, "h80": 24.0, "p80": 11.4, "h90": 4.6, "p90": 2.2}, "Jun": {"mn": "Jun", "wd": 22, "wh": 220, "h80": 67.8, "p80": 30.8, "h90": 4.9, "p90": 2.2}, "Jul": {"mn": "Jul", "wd": 23, "wh": 230, "h80": 127.4, "p80": 55.4, "h90": 20.2, "p90": 8.8}, "Aug": {"mn": "Aug", "wd": 21, "wh": 210, "h80": 51.9, "p80": 24.7, "h90": 0.0, "p90": 0.0}, "Sep": {"mn": "Sep", "wd": 22, "wh": 220, "h80": 11.3, "p80": 5.1, "h90": 0.0, "p90": 0.0}, "Total": {"mn": "Total", "wd": 109, "wh": 1090, "h80": 282.3, "p80": 25.9, "h90": 29.7, "p90": 2.7}}, "2021": {"May": {"mn": "May", "wd": 21, "wh": 210, "h80": 27.2, "p80": 13.0, "h90": 0.0, "p90": 0.0}, "Jun": {"mn": "Jun", "wd": 22, "wh": 220, "h80": 65.1, "p80": 29.6, "h90": 9.8, "p90": 4.5}, "Jul": {"mn": "Jul", "wd": 22, "wh": 220, "h80": 49.5, "p80": 22.5, "h90": 0.0, "p90": 0.0}, "Aug": {"mn": "Aug", "wd": 22, "wh": 220, "h80": 98.9, "p80": 45.0, "h90": 0.0, "p90": 0.0}, "Sep": {"mn": "Sep", "wd": 22, "wh": 220, "h80": 11.1, "p80": 5.0, "h90": 0.0, "p90": 0.0}, "Total": {"mn": "Total", "wd": 109, "wh": 1090, "h80": 251.9, "p80": 23.1, "h90": 9.8, "p90": 0.9}}, "2022": {"May": {"mn": "May", "wd": 22, "wh": 220, "h80": 29.1, "p80": 13.2, "h90": 0.0, "p90": 0.0}, "Jun": {"mn": "Jun", "wd": 22, "wh": 220, "h80": 44.4, "p80": 20.2, "h90": 11.3, "p90": 5.1}, "Jul": {"mn": "Jul", "wd": 21, "wh": 210, "h80": 78.0, "p80": 37.1, "h90": 4.6, "p90": 2.2}, "Aug": {"mn": "Aug", "wd": 23, "wh": 230, "h80": 78.1, "p80": 34.0, "h90": 4.2, "p90": 1.8}, "Sep": {"mn": "Sep", "wd": 22, "wh": 220, "h80": 8.3, "p80": 3.8, "h90": 0.0, "p90": 0.0}, "Total": {"mn": "Total", "wd": 110, "wh": 1100, "h80": 237.9, "p80": 21.6, "h90": 20.1, "p90": 1.8}}, "2023": {"May": {"mn": "May", "wd": 23, "wh": 230, "h80": 13.9, "p80": 6.0, "h90": 0.0, "p90": 0.0}, "Jun": {"mn": "Jun", "wd": 22, "wh": 220, "h80": 26.7, "p80": 12.1, "h90": 0.0, "p90": 0.0}, "Jul": {"mn": "Jul", "wd": 21, "wh": 210, "h80": 61.4, "p80": 29.2, "h90": 3.1, "p90": 1.5}, "Aug": {"mn": "Aug", "wd": 23, "wh": 230, "h80": 23.9, "p80": 10.4, "h90": 0.0, "p90": 0.0}, "Sep": {"mn": "Sep", "wd": 21, "wh": 210, "h80": 29.7, "p80": 14.1, "h90": 7.4, "p90": 3.5}, "Total": {"mn": "Total", "wd": 110, "wh": 1100, "h80": 155.7, "p80": 14.2, "h90": 10.6, "p90": 1.0}}, "2024": {"May": {"mn": "May", "wd": 23, "wh": 230, "h80": 20.2, "p80": 8.8, "h90": 0.0, "p90": 0.0}, "Jun": {"mn": "Jun", "wd": 20, "wh": 200, "h80": 72.4, "p80": 36.2, "h90": 17.6, "p90": 8.8}, "Jul": {"mn": "Jul", "wd": 23, "wh": 230, "h80": 110.1, "p80": 47.9, "h90": 0.0, "p90": 0.0}, "Aug": {"mn": "Aug", "wd": 22, "wh": 220, "h80": 58.6, "p80": 26.6, "h90": 3.2, "p90": 1.5}, "Sep": {"mn": "Sep", "wd": 21, "wh": 210, "h80": 21.8, "p80": 10.4, "h90": 0.0, "p90": 0.0}, "Total": {"mn": "Total", "wd": 109, "wh": 1090, "h80": 283.2, "p80": 26.0, "h90": 20.9, "p90": 1.9}}, "2025": {"May": {"mn": "May", "wd": 22, "wh": 220, "h80": 3.3, "p80": 1.5, "h90": 0.0, "p90": 0.0}, "Jun": {"mn": "Jun", "wd": 21, "wh": 210, "h80": 60.6, "p80": 28.9, "h90": 9.5, "p90": 4.5}, "Jul": {"mn": "Jul", "wd": 23, "wh": 230, "h80": 95.9, "p80": 41.7, "h90": 4.6, "p90": 2.0}, "Aug": {"mn": "Aug", "wd": 21, "wh": 210, "h80": 59.8, "p80": 28.5, "h90": 8.4, "p90": 4.0}, "Sep": {"mn": "Sep", "wd": 22, "wh": 220, "h80": 7.7, "p80": 3.5, "h90": 0.0, "p90": 0.0}, "Total": {"mn": "Total", "wd": 109, "wh": 1090, "h80": 227.2, "p80": 20.8, "h90": 22.5, "p90": 2.1}}}, "wind_w": {"2015-16": {"Nov": {"mn": "Nov", "wd": 0, "w5": 0, "q5": 0, "w10": 0, "q10": 0, "w15": 0, "q15": 0, "w20": 0, "q20": 0}, "Dec": {"mn": "Dec", "wd": 0, "w5": 0, "q5": 0, "w10": 0, "q10": 0, "w15": 0, "q15": 0, "w20": 0, "q20": 0}, "Jan": {"mn": "Jan", "wd": 21, "w5": 19, "q5": 90.5, "w10": 11, "q10": 52.4, "w15": 5, "q15": 23.8, "w20": 1, "q20": 4.8}, "Feb": {"mn": "Feb", "wd": 21, "w5": 20, "q5": 95.2, "w10": 12, "q10": 57.1, "w15": 3, "q15": 14.3, "w20": 0, "q20": 0.0}, "Mar": {"mn": "Mar", "wd": 23, "w5": 21, "q5": 91.3, "w10": 14, "q10": 60.9, "w15": 3, "q15": 13.0, "w20": 0, "q20": 0.0}, "Apr": {"mn": "Apr", "wd": 21, "w5": 21, "q5": 100.0, "w10": 10, "q10": 47.6, "w15": 1, "q15": 4.8, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 86, "w5": 81, "q5": 94.2, "w10": 47, "q10": 54.7, "w15": 12, "q15": 14.0, "w20": 1, "q20": 1.2}}, "2016-17": {"Nov": {"mn": "Nov", "wd": 22, "w5": 18, "q5": 81.8, "w10": 6, "q10": 27.3, "w15": 2, "q15": 9.1, "w20": 1, "q20": 4.5}, "Dec": {"mn": "Dec", "wd": 22, "w5": 22, "q5": 100.0, "w10": 19, "q10": 86.4, "w15": 5, "q15": 22.7, "w20": 0, "q20": 0.0}, "Jan": {"mn": "Jan", "wd": 22, "w5": 20, "q5": 90.9, "w10": 12, "q10": 54.5, "w15": 4, "q15": 18.2, "w20": 0, "q20": 0.0}, "Feb": {"mn": "Feb", "wd": 20, "w5": 19, "q5": 95.0, "w10": 11, "q10": 55.0, "w15": 2, "q15": 10.0, "w20": 0, "q20": 0.0}, "Mar": {"mn": "Mar", "wd": 23, "w5": 22, "q5": 95.7, "w10": 16, "q10": 69.6, "w15": 7, "q15": 30.4, "w20": 1, "q20": 4.3}, "Apr": {"mn": "Apr", "wd": 20, "w5": 20, "q5": 100.0, "w10": 11, "q10": 55.0, "w15": 1, "q15": 5.0, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 129, "w5": 121, "q5": 93.8, "w10": 75, "q10": 58.1, "w15": 21, "q15": 16.3, "w20": 2, "q20": 1.6}}, "2017-18": {"Nov": {"mn": "Nov", "wd": 22, "w5": 19, "q5": 86.4, "w10": 11, "q10": 50.0, "w15": 1, "q15": 4.5, "w20": 0, "q20": 0.0}, "Dec": {"mn": "Dec", "wd": 21, "w5": 21, "q5": 100.0, "w10": 11, "q10": 52.4, "w15": 4, "q15": 19.0, "w20": 0, "q20": 0.0}, "Jan": {"mn": "Jan", "wd": 23, "w5": 22, "q5": 95.7, "w10": 14, "q10": 60.9, "w15": 4, "q15": 17.4, "w20": 0, "q20": 0.0}, "Feb": {"mn": "Feb", "wd": 20, "w5": 19, "q5": 95.0, "w10": 13, "q10": 65.0, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Mar": {"mn": "Mar", "wd": 22, "w5": 19, "q5": 86.4, "w10": 14, "q10": 63.6, "w15": 1, "q15": 4.5, "w20": 0, "q20": 0.0}, "Apr": {"mn": "Apr", "wd": 21, "w5": 20, "q5": 95.2, "w10": 9, "q10": 42.9, "w15": 1, "q15": 4.8, "w20": 1, "q20": 4.8}, "Total": {"mn": "Total", "wd": 129, "w5": 120, "q5": 93.0, "w10": 72, "q10": 55.8, "w15": 11, "q15": 8.5, "w20": 1, "q20": 0.8}}, "2018-19": {"Nov": {"mn": "Nov", "wd": 22, "w5": 19, "q5": 86.4, "w10": 8, "q10": 36.4, "w15": 3, "q15": 13.6, "w20": 0, "q20": 0.0}, "Dec": {"mn": "Dec", "wd": 21, "w5": 20, "q5": 95.2, "w10": 5, "q10": 23.8, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Jan": {"mn": "Jan", "wd": 23, "w5": 21, "q5": 91.3, "w10": 15, "q10": 65.2, "w15": 7, "q15": 30.4, "w20": 0, "q20": 0.0}, "Feb": {"mn": "Feb", "wd": 20, "w5": 18, "q5": 90.0, "w10": 12, "q10": 60.0, "w15": 5, "q15": 25.0, "w20": 3, "q20": 15.0}, "Mar": {"mn": "Mar", "wd": 21, "w5": 17, "q5": 81.0, "w10": 9, "q10": 42.9, "w15": 2, "q15": 9.5, "w20": 1, "q20": 4.8}, "Apr": {"mn": "Apr", "wd": 22, "w5": 21, "q5": 95.5, "w10": 11, "q10": 50.0, "w15": 1, "q15": 4.5, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 129, "w5": 116, "q5": 89.9, "w10": 60, "q10": 46.5, "w15": 18, "q15": 14.0, "w20": 4, "q20": 3.1}}, "2019-20": {"Nov": {"mn": "Nov", "wd": 21, "w5": 19, "q5": 90.5, "w10": 9, "q10": 42.9, "w15": 2, "q15": 9.5, "w20": 0, "q20": 0.0}, "Dec": {"mn": "Dec", "wd": 22, "w5": 18, "q5": 81.8, "w10": 9, "q10": 40.9, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Jan": {"mn": "Jan", "wd": 23, "w5": 20, "q5": 87.0, "w10": 8, "q10": 34.8, "w15": 1, "q15": 4.3, "w20": 0, "q20": 0.0}, "Feb": {"mn": "Feb", "wd": 20, "w5": 20, "q5": 100.0, "w10": 8, "q10": 40.0, "w15": 3, "q15": 15.0, "w20": 2, "q20": 10.0}, "Mar": {"mn": "Mar", "wd": 22, "w5": 22, "q5": 100.0, "w10": 10, "q10": 45.5, "w15": 3, "q15": 13.6, "w20": 0, "q20": 0.0}, "Apr": {"mn": "Apr", "wd": 22, "w5": 22, "q5": 100.0, "w10": 10, "q10": 45.5, "w15": 4, "q15": 18.2, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 130, "w5": 121, "q5": 93.1, "w10": 54, "q10": 41.5, "w15": 13, "q15": 10.0, "w20": 2, "q20": 1.5}}, "2020-21": {"Nov": {"mn": "Nov", "wd": 21, "w5": 20, "q5": 95.2, "w10": 12, "q10": 57.1, "w15": 1, "q15": 4.8, "w20": 0, "q20": 0.0}, "Dec": {"mn": "Dec", "wd": 23, "w5": 20, "q5": 87.0, "w10": 13, "q10": 56.5, "w15": 3, "q15": 13.0, "w20": 0, "q20": 0.0}, "Jan": {"mn": "Jan", "wd": 21, "w5": 17, "q5": 81.0, "w10": 6, "q10": 28.6, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Feb": {"mn": "Feb", "wd": 20, "w5": 18, "q5": 90.0, "w10": 9, "q10": 45.0, "w15": 2, "q15": 10.0, "w20": 0, "q20": 0.0}, "Mar": {"mn": "Mar", "wd": 23, "w5": 22, "q5": 95.7, "w10": 12, "q10": 52.2, "w15": 6, "q15": 26.1, "w20": 0, "q20": 0.0}, "Apr": {"mn": "Apr", "wd": 22, "w5": 20, "q5": 90.9, "w10": 10, "q10": 45.5, "w15": 1, "q15": 4.5, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 130, "w5": 117, "q5": 90.0, "w10": 62, "q10": 47.7, "w15": 13, "q15": 10.0, "w20": 0, "q20": 0.0}}, "2021-22": {"Nov": {"mn": "Nov", "wd": 22, "w5": 18, "q5": 81.8, "w10": 7, "q10": 31.8, "w15": 2, "q15": 9.1, "w20": 0, "q20": 0.0}, "Dec": {"mn": "Dec", "wd": 23, "w5": 19, "q5": 82.6, "w10": 7, "q10": 30.4, "w15": 4, "q15": 17.4, "w20": 1, "q20": 4.3}, "Jan": {"mn": "Jan", "wd": 21, "w5": 19, "q5": 90.5, "w10": 12, "q10": 57.1, "w15": 3, "q15": 14.3, "w20": 0, "q20": 0.0}, "Feb": {"mn": "Feb", "wd": 20, "w5": 20, "q5": 100.0, "w10": 10, "q10": 50.0, "w15": 1, "q15": 5.0, "w20": 0, "q20": 0.0}, "Mar": {"mn": "Mar", "wd": 23, "w5": 22, "q5": 95.7, "w10": 9, "q10": 39.1, "w15": 1, "q15": 4.3, "w20": 0, "q20": 0.0}, "Apr": {"mn": "Apr", "wd": 21, "w5": 21, "q5": 100.0, "w10": 12, "q10": 57.1, "w15": 2, "q15": 9.5, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 130, "w5": 119, "q5": 91.5, "w10": 57, "q10": 43.8, "w15": 13, "q15": 10.0, "w20": 1, "q20": 0.8}}, "2022-23": {"Nov": {"mn": "Nov", "wd": 22, "w5": 19, "q5": 86.4, "w10": 6, "q10": 27.3, "w15": 1, "q15": 4.5, "w20": 0, "q20": 0.0}, "Dec": {"mn": "Dec", "wd": 22, "w5": 19, "q5": 86.4, "w10": 8, "q10": 36.4, "w15": 3, "q15": 13.6, "w20": 1, "q20": 4.5}, "Jan": {"mn": "Jan", "wd": 22, "w5": 20, "q5": 90.9, "w10": 9, "q10": 40.9, "w15": 1, "q15": 4.5, "w20": 0, "q20": 0.0}, "Feb": {"mn": "Feb", "wd": 20, "w5": 20, "q5": 100.0, "w10": 15, "q10": 75.0, "w15": 4, "q15": 20.0, "w20": 1, "q20": 5.0}, "Mar": {"mn": "Mar", "wd": 23, "w5": 21, "q5": 91.3, "w10": 8, "q10": 34.8, "w15": 3, "q15": 13.0, "w20": 0, "q20": 0.0}, "Apr": {"mn": "Apr", "wd": 20, "w5": 19, "q5": 95.0, "w10": 10, "q10": 50.0, "w15": 3, "q15": 15.0, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 129, "w5": 118, "q5": 91.5, "w10": 56, "q10": 43.4, "w15": 15, "q15": 11.6, "w20": 2, "q20": 1.6}}, "2023-24": {"Nov": {"mn": "Nov", "wd": 22, "w5": 21, "q5": 95.5, "w10": 11, "q10": 50.0, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Dec": {"mn": "Dec", "wd": 21, "w5": 15, "q5": 71.4, "w10": 9, "q10": 42.9, "w15": 1, "q15": 4.8, "w20": 0, "q20": 0.0}, "Jan": {"mn": "Jan", "wd": 23, "w5": 18, "q5": 78.3, "w10": 8, "q10": 34.8, "w15": 1, "q15": 4.3, "w20": 0, "q20": 0.0}, "Feb": {"mn": "Feb", "wd": 21, "w5": 18, "q5": 85.7, "w10": 10, "q10": 47.6, "w15": 2, "q15": 9.5, "w20": 1, "q20": 4.8}, "Mar": {"mn": "Mar", "wd": 21, "w5": 21, "q5": 100.0, "w10": 12, "q10": 57.1, "w15": 1, "q15": 4.8, "w20": 0, "q20": 0.0}, "Apr": {"mn": "Apr", "wd": 22, "w5": 20, "q5": 90.9, "w10": 7, "q10": 31.8, "w15": 1, "q15": 4.5, "w20": 1, "q20": 4.5}, "Total": {"mn": "Total", "wd": 130, "w5": 113, "q5": 86.9, "w10": 57, "q10": 43.8, "w15": 6, "q15": 4.6, "w20": 2, "q20": 1.5}}, "2024-25": {"Nov": {"mn": "Nov", "wd": 21, "w5": 20, "q5": 95.2, "w10": 12, "q10": 57.1, "w15": 1, "q15": 4.8, "w20": 0, "q20": 0.0}, "Dec": {"mn": "Dec", "wd": 22, "w5": 21, "q5": 95.5, "w10": 9, "q10": 40.9, "w15": 3, "q15": 13.6, "w20": 0, "q20": 0.0}, "Jan": {"mn": "Jan", "wd": 23, "w5": 23, "q5": 100.0, "w10": 16, "q10": 69.6, "w15": 6, "q15": 26.1, "w20": 1, "q20": 4.3}, "Feb": {"mn": "Feb", "wd": 20, "w5": 20, "q5": 100.0, "w10": 13, "q10": 65.0, "w15": 5, "q15": 25.0, "w20": 1, "q20": 5.0}, "Mar": {"mn": "Mar", "wd": 21, "w5": 21, "q5": 100.0, "w10": 11, "q10": 52.4, "w15": 5, "q15": 23.8, "w20": 1, "q20": 4.8}, "Apr": {"mn": "Apr", "wd": 22, "w5": 21, "q5": 95.5, "w10": 9, "q10": 40.9, "w15": 5, "q15": 22.7, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 129, "w5": 126, "q5": 97.7, "w10": 70, "q10": 54.3, "w15": 25, "q15": 19.4, "w20": 3, "q20": 2.3}}, "2025-26": {"Nov": {"mn": "Nov", "wd": 20, "w5": 17, "q5": 85.0, "w10": 11, "q10": 55.0, "w15": 2, "q15": 10.0, "w20": 1, "q20": 5.0}, "Dec": {"mn": "Dec", "wd": 23, "w5": 23, "q5": 100.0, "w10": 16, "q10": 69.6, "w15": 3, "q15": 13.0, "w20": 3, "q20": 13.0}, "Jan": {"mn": "Jan", "wd": 22, "w5": 22, "q5": 100.0, "w10": 18, "q10": 81.8, "w15": 7, "q15": 31.8, "w20": 0, "q20": 0.0}, "Feb": {"mn": "Feb", "wd": 20, "w5": 17, "q5": 85.0, "w10": 6, "q10": 30.0, "w15": 2, "q15": 10.0, "w20": 0, "q20": 0.0}, "Mar": {"mn": "Mar", "wd": 22, "w5": 19, "q5": 86.4, "w10": 12, "q10": 54.5, "w15": 3, "q15": 13.6, "w20": 0, "q20": 0.0}, "Apr": {"mn": "Apr", "wd": 8, "w5": 8, "q5": 100.0, "w10": 5, "q10": 62.5, "w15": 1, "q15": 12.5, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 115, "w5": 106, "q5": 92.2, "w10": 68, "q10": 59.1, "w15": 18, "q15": 15.7, "w20": 4, "q20": 3.5}}}, "wind_s": {"2016": {"May": {"mn": "May", "wd": 22, "w5": 20, "q5": 90.9, "w10": 4, "q10": 18.2, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Jun": {"mn": "Jun", "wd": 22, "w5": 19, "q5": 86.4, "w10": 6, "q10": 27.3, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Jul": {"mn": "Jul", "wd": 21, "w5": 17, "q5": 81.0, "w10": 4, "q10": 19.0, "w15": 1, "q15": 4.8, "w20": 0, "q20": 0.0}, "Aug": {"mn": "Aug", "wd": 23, "w5": 18, "q5": 78.3, "w10": 3, "q10": 13.0, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Sep": {"mn": "Sep", "wd": 22, "w5": 16, "q5": 72.7, "w10": 3, "q10": 13.6, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 110, "w5": 90, "q5": 81.8, "w10": 20, "q10": 18.2, "w15": 1, "q15": 0.9, "w20": 0, "q20": 0.0}}, "2017": {"May": {"mn": "May", "wd": 23, "w5": 22, "q5": 95.7, "w10": 7, "q10": 30.4, "w15": 1, "q15": 4.3, "w20": 0, "q20": 0.0}, "Jun": {"mn": "Jun", "wd": 22, "w5": 21, "q5": 95.5, "w10": 5, "q10": 22.7, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Jul": {"mn": "Jul", "wd": 21, "w5": 14, "q5": 66.7, "w10": 0, "q10": 0.0, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Aug": {"mn": "Aug", "wd": 23, "w5": 20, "q5": 87.0, "w10": 3, "q10": 13.0, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Sep": {"mn": "Sep", "wd": 21, "w5": 10, "q5": 47.6, "w10": 3, "q10": 14.3, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 110, "w5": 87, "q5": 79.1, "w10": 18, "q10": 16.4, "w15": 1, "q15": 0.9, "w20": 0, "q20": 0.0}}, "2018": {"May": {"mn": "May", "wd": 23, "w5": 20, "q5": 87.0, "w10": 8, "q10": 34.8, "w15": 2, "q15": 8.7, "w20": 0, "q20": 0.0}, "Jun": {"mn": "Jun", "wd": 21, "w5": 19, "q5": 90.5, "w10": 5, "q10": 23.8, "w15": 1, "q15": 4.8, "w20": 0, "q20": 0.0}, "Jul": {"mn": "Jul", "wd": 22, "w5": 18, "q5": 81.8, "w10": 2, "q10": 9.1, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Aug": {"mn": "Aug", "wd": 23, "w5": 19, "q5": 82.6, "w10": 4, "q10": 17.4, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Sep": {"mn": "Sep", "wd": 20, "w5": 15, "q5": 75.0, "w10": 2, "q10": 10.0, "w15": 1, "q15": 5.0, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 109, "w5": 91, "q5": 83.5, "w10": 21, "q10": 19.3, "w15": 4, "q15": 3.7, "w20": 0, "q20": 0.0}}, "2019": {"May": {"mn": "May", "wd": 23, "w5": 23, "q5": 100.0, "w10": 7, "q10": 30.4, "w15": 1, "q15": 4.3, "w20": 0, "q20": 0.0}, "Jun": {"mn": "Jun", "wd": 20, "w5": 17, "q5": 85.0, "w10": 6, "q10": 30.0, "w15": 1, "q15": 5.0, "w20": 0, "q20": 0.0}, "Jul": {"mn": "Jul", "wd": 23, "w5": 13, "q5": 56.5, "w10": 1, "q10": 4.3, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Aug": {"mn": "Aug", "wd": 22, "w5": 16, "q5": 72.7, "w10": 2, "q10": 9.1, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Sep": {"mn": "Sep", "wd": 21, "w5": 16, "q5": 76.2, "w10": 4, "q10": 19.0, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 109, "w5": 85, "q5": 78.0, "w10": 20, "q10": 18.3, "w15": 2, "q15": 1.8, "w20": 0, "q20": 0.0}}, "2020": {"May": {"mn": "May", "wd": 21, "w5": 19, "q5": 90.5, "w10": 9, "q10": 42.9, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Jun": {"mn": "Jun", "wd": 22, "w5": 20, "q5": 90.9, "w10": 5, "q10": 22.7, "w15": 2, "q15": 9.1, "w20": 0, "q20": 0.0}, "Jul": {"mn": "Jul", "wd": 23, "w5": 19, "q5": 82.6, "w10": 3, "q10": 13.0, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Aug": {"mn": "Aug", "wd": 21, "w5": 17, "q5": 81.0, "w10": 3, "q10": 14.3, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Sep": {"mn": "Sep", "wd": 22, "w5": 21, "q5": 95.5, "w10": 4, "q10": 18.2, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 109, "w5": 96, "q5": 88.1, "w10": 24, "q10": 22.0, "w15": 2, "q15": 1.8, "w20": 0, "q20": 0.0}}, "2021": {"May": {"mn": "May", "wd": 21, "w5": 20, "q5": 95.2, "w10": 7, "q10": 33.3, "w15": 1, "q15": 4.8, "w20": 0, "q20": 0.0}, "Jun": {"mn": "Jun", "wd": 22, "w5": 21, "q5": 95.5, "w10": 7, "q10": 31.8, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Jul": {"mn": "Jul", "wd": 22, "w5": 20, "q5": 90.9, "w10": 2, "q10": 9.1, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Aug": {"mn": "Aug", "wd": 22, "w5": 17, "q5": 77.3, "w10": 2, "q10": 9.1, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Sep": {"mn": "Sep", "wd": 22, "w5": 21, "q5": 95.5, "w10": 4, "q10": 18.2, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 109, "w5": 99, "q5": 90.8, "w10": 22, "q10": 20.2, "w15": 1, "q15": 0.9, "w20": 0, "q20": 0.0}}, "2022": {"May": {"mn": "May", "wd": 22, "w5": 18, "q5": 81.8, "w10": 3, "q10": 13.6, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Jun": {"mn": "Jun", "wd": 22, "w5": 19, "q5": 86.4, "w10": 6, "q10": 27.3, "w15": 1, "q15": 4.5, "w20": 0, "q20": 0.0}, "Jul": {"mn": "Jul", "wd": 21, "w5": 19, "q5": 90.5, "w10": 5, "q10": 23.8, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Aug": {"mn": "Aug", "wd": 23, "w5": 19, "q5": 82.6, "w10": 4, "q10": 17.4, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Sep": {"mn": "Sep", "wd": 22, "w5": 17, "q5": 77.3, "w10": 4, "q10": 18.2, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 110, "w5": 92, "q5": 83.6, "w10": 22, "q10": 20.0, "w15": 1, "q15": 0.9, "w20": 0, "q20": 0.0}}, "2023": {"May": {"mn": "May", "wd": 23, "w5": 19, "q5": 82.6, "w10": 4, "q10": 17.4, "w15": 1, "q15": 4.3, "w20": 0, "q20": 0.0}, "Jun": {"mn": "Jun", "wd": 22, "w5": 19, "q5": 86.4, "w10": 2, "q10": 9.1, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Jul": {"mn": "Jul", "wd": 21, "w5": 14, "q5": 66.7, "w10": 1, "q10": 4.8, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Aug": {"mn": "Aug", "wd": 23, "w5": 19, "q5": 82.6, "w10": 3, "q10": 13.0, "w15": 1, "q15": 4.3, "w20": 0, "q20": 0.0}, "Sep": {"mn": "Sep", "wd": 21, "w5": 15, "q5": 71.4, "w10": 0, "q10": 0.0, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 110, "w5": 86, "q5": 78.2, "w10": 10, "q10": 9.1, "w15": 2, "q15": 1.8, "w20": 0, "q20": 0.0}}, "2024": {"May": {"mn": "May", "wd": 23, "w5": 19, "q5": 82.6, "w10": 5, "q10": 21.7, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Jun": {"mn": "Jun", "wd": 20, "w5": 16, "q5": 80.0, "w10": 4, "q10": 20.0, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Jul": {"mn": "Jul", "wd": 23, "w5": 18, "q5": 78.3, "w10": 1, "q10": 4.3, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Aug": {"mn": "Aug", "wd": 22, "w5": 19, "q5": 86.4, "w10": 1, "q10": 4.5, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Sep": {"mn": "Sep", "wd": 21, "w5": 7, "q5": 33.3, "w10": 0, "q10": 0.0, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 109, "w5": 79, "q5": 72.5, "w10": 11, "q10": 10.1, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}}, "2025": {"May": {"mn": "May", "wd": 22, "w5": 19, "q5": 86.4, "w10": 7, "q10": 31.8, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Jun": {"mn": "Jun", "wd": 21, "w5": 18, "q5": 85.7, "w10": 9, "q10": 42.9, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Jul": {"mn": "Jul", "wd": 23, "w5": 17, "q5": 73.9, "w10": 4, "q10": 17.4, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Aug": {"mn": "Aug", "wd": 21, "w5": 16, "q5": 76.2, "w10": 0, "q10": 0.0, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Sep": {"mn": "Sep", "wd": 22, "w5": 11, "q5": 50.0, "w10": 0, "q10": 0.0, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}, "Total": {"mn": "Total", "wd": 109, "w5": 81, "q5": 74.3, "w10": 20, "q10": 18.3, "w15": 0, "q15": 0.0, "w20": 0, "q20": 0.0}}}};
+
+
+// ── Constants ──────────────────────────────────────────────────────────────
+const SEASONS_W = ['2015-16','2016-17','2017-18','2018-19','2019-20','2020-21','2021-22','2022-23','2023-24','2024-25','2025-26'];
+const SEASONS_S = ['2016','2017','2018','2019','2020','2021','2022','2023','2024','2025'];
+const PARTIAL = {'2015-16':true,'2025-26':true};
+const MONTHS_W = ['Nov','Dec','Jan','Feb','Mar','Apr'];
+const MONTHS_S = ['May','Jun','Jul','Aug','Sep'];
+const COLD_T = [32,25,20,15];
+const HEAT_T = [80,90];
+const SNOW_T = [5,10,15,20];
+const WIND_T = [5,10,15,20];
+
+const COLD_COLORS = ['#60c4f5','#3a8fbf','#1a5a80','#0d3350'];
+const HEAT_COLORS = ['#ffb347','#ff6b35'];
+const SNOW_COLORS = ['#a8d8ff','#5aadee','#2270aa','#0d3a60'];
+const WIND_COLORS = ['#8de8b4','#42c47a','#1a7a44','#0a3d22'];
+
+let activeTab = 'cold';
+let selectedColdSeason = '2021-22';
+let selectedSnowSeason = '2021-22';
+let selectedHeatYear = '2021';
+let selectedWindPeriod = '2021-22';
+let windMode = 'winter';
+
+const charts = {};
+
+// ── Chart defaults ────────────────────────────────────────────────────────
+Chart.defaults.color = '#6b7a99';
+Chart.defaults.borderColor = '#2a3348';
+Chart.defaults.font.family = "'IBM Plex Mono', monospace";
+Chart.defaults.font.size = 11;
+
+function makeChart(id, type, data, opts) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), { type, data, options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `  ${ctx.dataset.label}: ${typeof ctx.parsed.y === 'number' ? ctx.parsed.y.toFixed(1) : ctx.parsed.y}` } } },
+    scales: {
+      x: { grid: { color: '#1e2535' }, ticks: { maxRotation: 45, autoSkip: false } },
+      y: { grid: { color: '#1e2535' }, beginAtZero: true }
+    },
+    ...opts
+  }});
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────
+function showTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.getAttribute('onclick').includes(`'${tab}'`)));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tab}`));
+  renderAll();
+}
+
+// ── Season buttons ────────────────────────────────────────────────────────
+function buildSeasonBtns(containerId, seasons, selectedFn, onClick) {
+  const c = document.getElementById(containerId);
+  c.innerHTML = '';
+  seasons.forEach(s => {
+    const b = document.createElement('div');
+    b.className = 'sbtn' + (PARTIAL[s] ? ' partial' : '') + (s === selectedFn() ? ' active' : '');
+    b.textContent = s + (PARTIAL[s] ? '*' : '');
+    b.onclick = () => { onClick(s); renderAll(); };
+    c.appendChild(b);
+  });
+}
+
+// ── Cards ─────────────────────────────────────────────────────────────────
+function setCards(containerId, cards) {
+  const c = document.getElementById(containerId);
+  c.innerHTML = cards.map(({ label, value, sub, cls }) =>
+    `<div class="card ${cls}"><div class="card-label">${label}</div><div class="card-value">${value}</div><div class="card-sub">${sub}</div></div>`
+  ).join('');
+}
+
+// ── Tables ────────────────────────────────────────────────────────────────
+function cell(v, p, isTotal) {
+  const fw = isTotal ? 'style="font-weight:600"' : '';
+  return `<td ${fw}>${v} <span class="pct">(${p}%)</span></td>`;
+}
+
+function buildColdTable(sl) {
+  const d = DB.cold[sl];
+  const hdr = `<tr><th>Month</th><th>Work days</th><th>Work hrs</th><th>Below 32°F</th><th>Below 25°F</th><th>Below 20°F</th><th>Below 15°F</th></tr>`;
+  const rows = [...MONTHS_W, 'Total'].map(m => {
+    const r = d[m]; const isT = m==='Total';
+    return `<tr class="${isT?'total-row':''}"><td>${r.mn}</td><td>${r.wd}</td><td>${r.wh}</td>${COLD_T.map(t=>cell(r[`h${t}`],r[`p${t}`],isT)).join('')}</tr>`;
+  }).join('');
+  document.getElementById('cold-table').innerHTML = hdr + rows;
+  document.getElementById('cold-tbl-header').textContent = `Season ${sl} — monthly cold working hours`;
+}
+
+function buildSnowTable(sl) {
+  const d = DB.snow[sl];
+  const hdr = `<tr><th>Month</th><th>Work days</th><th>Snowfall (in)</th><th>Days ≥5"</th><th>Days ≥10"</th><th>Days ≥15"</th><th>Days ≥20"</th></tr>`;
+  const rows = [...MONTHS_W, 'Total'].map(m => {
+    const r = d[m]; const isT = m==='Total';
+    return `<tr class="${isT?'total-row':''}"><td>${r.mn}</td><td>${r.wd}</td><td>${r.si}"</td>${SNOW_T.map(t=>cell(r[`d${t}`],r[`p${t}`],isT)).join('')}</tr>`;
+  }).join('');
+  document.getElementById('snow-table').innerHTML = hdr + rows;
+  document.getElementById('snow-tbl-header').textContent = `Season ${sl} — Medina snow depth working days`;
+}
+
+function buildHeatTable(yr) {
+  const d = DB.heat[yr];
+  const hdr = `<tr><th>Month</th><th>Work days</th><th>Work hrs</th><th>Above 80°F</th><th>Above 90°F</th></tr>`;
+  const rows = [...MONTHS_S, 'Total'].map(m => {
+    const r = d[m]; const isT = m==='Total';
+    return `<tr class="${isT?'total-row':''}"><td>${r.mn}</td><td>${r.wd}</td><td>${r.wh}</td>${HEAT_T.map(t=>cell(r[`h${t}`],r[`p${t}`],isT)).join('')}</tr>`;
+  }).join('');
+  document.getElementById('heat-table').innerHTML = hdr + rows;
+  document.getElementById('heat-tbl-header').textContent = `Year ${yr} — heat working hours`;
+}
+
+function buildWindTable(key, months, wdays_dict_key) {
+  const d = DB[wdays_dict_key][key];
+  const hdr = `<tr><th>Month</th><th>Work days</th><th>Days ≥5 mph</th><th>Days ≥10 mph</th><th>Days ≥15 mph</th><th>Days ≥20 mph</th></tr>`;
+  const rows = [...months, 'Total'].map(m => {
+    const r = d[m]; const isT = m==='Total';
+    return `<tr class="${isT?'total-row':''}"><td>${r.mn}</td><td>${r.wd}</td>${WIND_T.map(t=>cell(r[`w${t}`],r[`q${t}`],isT)).join('')}</tr>`;
+  }).join('');
+  document.getElementById('wind-table').innerHTML = hdr + rows;
+  document.getElementById('wind-tbl-header').textContent = `Period ${key} — wind days`;
+}
+
+// ── Render cold ───────────────────────────────────────────────────────────
+function renderCold() {
+  const sl = selectedColdSeason;
+  buildSeasonBtns('cold-seasons', SEASONS_W, ()=>sl, s=>selectedColdSeason=s);
+  const tot = DB.cold[sl].Total;
+  setCards('cold-cards', [
+    {label:'Work days',       value: tot.wd,        sub:'Mon–Fri, Nov–Apr',    cls:''},
+    {label:'Work hours',      value: tot.wh,        sub:'10 hrs/day',          cls:''},
+    {label:'Hrs below 32°F',  value: tot.h32,       sub:`${tot.p32}% of work hrs`, cls:'c-cold'},
+    {label:'Hrs below 25°F',  value: tot.h25,       sub:`${tot.p25}% of work hrs`, cls:'c-cold'},
+    {label:'Hrs below 20°F',  value: tot.h20,       sub:`${tot.p20}% of work hrs`, cls:'c-cold'},
+    {label:'Hrs below 15°F',  value: tot.h15,       sub:`${tot.p15}% of work hrs`, cls:'c-cold'},
+  ]);
+  // Trend chart
+  makeChart('coldTrendChart','line',{
+    labels: SEASONS_W,
+    datasets: COLD_T.map((t,i)=>({
+      label:`<${t}°F`, data: SEASONS_W.map(s=>DB.cold[s].Total[`h${t}`]),
+      borderColor:COLD_COLORS[i], backgroundColor:COLD_COLORS[i], borderWidth:2,
+      pointRadius:SEASONS_W.map(s=>s===sl?5:2.5), pointStyle:'circle', tension:.3, fill:false
+    }))
+  },{});
+  // Month bar
+  makeChart('coldMonthChart','bar',{
+    labels: MONTHS_W,
+    datasets: COLD_T.map((t,i)=>({
+      label:`<${t}°F`, data: MONTHS_W.map(m=>DB.cold[sl][m][`h${t}`]),
+      backgroundColor:COLD_COLORS[i], borderRadius:2
+    }))
+  },{});
+  buildColdTable(sl);
+}
+
+// ── Render snow ───────────────────────────────────────────────────────────
+function renderSnow() {
+  const sl = selectedSnowSeason;
+  buildSeasonBtns('snow-seasons', SEASONS_W, ()=>sl, s=>selectedSnowSeason=s);
+  const tot = DB.snow[sl].Total;
+  setCards('snow-cards', [
+    {label:'Total snowfall',  value: tot.si+'"',    sub:'inches Nov–Apr',      cls:'c-snow'},
+    {label:'Work days (5"+)', value: tot.d5,        sub:`${tot.p5}% of work days`, cls:'c-snow'},
+    {label:'Work days (10"+)',value: tot.d10,       sub:`${tot.p10}% of work days`,cls:'c-snow'},
+    {label:'Work days (15"+)',value: tot.d15,       sub:`${tot.p15}% of work days`,cls:'c-snow'},
+    {label:'Work days (20"+)',value: tot.d20,       sub:`${tot.p20}% of work days`,cls:'c-snow'},
+  ]);
+  makeChart('snowTotalChart','bar',{
+    labels: SEASONS_W,
+    datasets:[{
+      label:'Snowfall (in)', data: SEASONS_W.map(s=>DB.snow[s].Total.si),
+      backgroundColor: SEASONS_W.map(s=>s===sl?'#a8d8ff':'#2a3a55'), borderRadius:3
+    }]
+  },{});
+  makeChart('snowDepthChart','line',{
+    labels: SEASONS_W,
+    datasets: SNOW_T.map((t,i)=>({
+      label:`≥${t}"`, data: SEASONS_W.map(s=>DB.snow[s].Total[`d${t}`]),
+      borderColor:SNOW_COLORS[i], backgroundColor:SNOW_COLORS[i], borderWidth:2,
+      pointRadius:SEASONS_W.map(s=>s===sl?5:2.5), pointStyle:'circle', tension:.3, fill:false
+    }))
+  },{});
+  buildSnowTable(sl);
+}
+
+// ── Render heat ───────────────────────────────────────────────────────────
+function renderHeat() {
+  const yr = selectedHeatYear;
+  buildSeasonBtns('heat-seasons', SEASONS_S, ()=>yr, s=>selectedHeatYear=s);
+  const tot = DB.heat[yr].Total;
+  setCards('heat-cards', [
+    {label:'Work days',      value: tot.wd,        sub:'Mon–Fri, May–Sep',    cls:''},
+    {label:'Work hours',     value: tot.wh,        sub:'10 hrs/day',          cls:''},
+    {label:'Hrs above 80°F', value: tot.h80,       sub:`${tot.p80}% — initial trigger`, cls:'c-heat'},
+    {label:'Hrs above 90°F', value: tot.h90,       sub:`${tot.p90}% — high heat trigger`, cls:'c-heat'},
+  ]);
+  makeChart('heatTrendChart','line',{
+    labels: SEASONS_S,
+    datasets: HEAT_T.map((t,i)=>({
+      label:`>${t}°F`, data: SEASONS_S.map(s=>DB.heat[s].Total[`h${t}`]),
+      borderColor:HEAT_COLORS[i], backgroundColor:HEAT_COLORS[i], borderWidth:2,
+      pointRadius:SEASONS_S.map(s=>s===yr?5:2.5), pointStyle:'circle', tension:.3, fill:false
+    }))
+  },{});
+  makeChart('heatMonthChart','bar',{
+    labels: MONTHS_S,
+    datasets: HEAT_T.map((t,i)=>({
+      label:`>${t}°F`, data: MONTHS_S.map(m=>DB.heat[yr][m][`h${t}`]),
+      backgroundColor:HEAT_COLORS[i], borderRadius:2
+    }))
+  },{});
+  buildHeatTable(yr);
+}
+
+// ── Render wind ───────────────────────────────────────────────────────────
+function renderWind() {
+  // Wind selector: show both winter seasons + summer years, toggled
+  const allKeys = [...SEASONS_W.map(s=>({key:s,label:s,type:'w'})), ...SEASONS_S.map(s=>({key:s,label:'S'+s,type:'s'}))];
+  const isWinter = SEASONS_W.includes(selectedWindPeriod);
+  const wMths = isWinter ? MONTHS_W : MONTHS_S;
+  const wDictKey = isWinter ? 'wind_w' : 'wind_s';
+
+  const c = document.getElementById('wind-seasons');
+  c.innerHTML = '';
+  // Group header
+  const wLabel = document.createElement('span');
+  wLabel.style.cssText = 'font-family:var(--mono);font-size:10px;color:var(--muted);padding:4px 6px;';
+  wLabel.textContent = 'WINTER:';
+  c.appendChild(wLabel);
+  SEASONS_W.forEach(s => {
+    const b = document.createElement('div');
+    b.className = 'sbtn' + (PARTIAL[s]?' partial':'') + (s===selectedWindPeriod?' active':'');
+    b.textContent = s + (PARTIAL[s]?'*':'');
+    b.onclick = ()=>{ selectedWindPeriod=s; renderWind(); };
+    c.appendChild(b);
+  });
+  const sLabel = document.createElement('span');
+  sLabel.style.cssText = 'font-family:var(--mono);font-size:10px;color:var(--muted);padding:4px 6px;margin-left:8px;';
+  sLabel.textContent = 'SUMMER:';
+  c.appendChild(sLabel);
+  SEASONS_S.forEach(s => {
+    const b = document.createElement('div');
+    b.className = 'sbtn' + (s===selectedWindPeriod?' active':'');
+    b.textContent = s;
+    b.onclick = ()=>{ selectedWindPeriod=s; renderWind(); };
+    c.appendChild(b);
+  });
+
+  const tot = DB[wDictKey][selectedWindPeriod].Total;
+  setCards('wind-cards', [
+    {label:'Work days',        value: tot.wd,       sub:isWinter?'Nov–Apr':'May–Sep',  cls:''},
+    {label:'Days ≥5 mph',     value: tot.w5,       sub:`${tot.q5}% of work days`,     cls:'c-wind'},
+    {label:'Days ≥10 mph',    value: tot.w10,      sub:`${tot.q10}% of work days`,    cls:'c-wind'},
+    {label:'Days ≥15 mph',    value: tot.w15,      sub:`${tot.q15}% of work days`,    cls:'c-wind'},
+    {label:'Days ≥20 mph',    value: tot.w20,      sub:`${tot.q20}% of work days`,    cls:'c-wind'},
+  ]);
+
+  // Trend: show all winter or all summer
+  const trendKeys = isWinter ? SEASONS_W : SEASONS_S;
+  const trendDict = isWinter ? DB.wind_w : DB.wind_s;
+  makeChart('windTrendChart','line',{
+    labels: trendKeys,
+    datasets: WIND_T.map((t,i)=>({
+      label:`≥${t}mph`, data: trendKeys.map(s=>trendDict[s].Total[`w${t}`]),
+      borderColor:WIND_COLORS[i], backgroundColor:WIND_COLORS[i], borderWidth:2,
+      pointRadius:trendKeys.map(s=>s===selectedWindPeriod?5:2.5), pointStyle:'circle', tension:.3, fill:false
+    }))
+  },{});
+  makeChart('windMonthChart','bar',{
+    labels: wMths,
+    datasets: WIND_T.map((t,i)=>({
+      label:`≥${t}mph`, data: wMths.map(m=>DB[wDictKey][selectedWindPeriod][m][`w${t}`]),
+      backgroundColor:WIND_COLORS[i], borderRadius:2
+    }))
+  },{});
+  buildWindTable(selectedWindPeriod, wMths, wDictKey);
+}
+
+// ── Render all ────────────────────────────────────────────────────────────
+function renderAll() {
+  if(activeTab==='cold') renderCold();
+  else if(activeTab==='snow') renderSnow();
+  else if(activeTab==='heat') renderHeat();
+  else if(activeTab==='wind') renderWind();
+}
+
+// ── CSV Upload (stub for future use) ─────────────────────────────────────
+const dropZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('csvInput');
+const statusEl = document.getElementById('uploadStatus');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag');
+  const files = [...e.dataTransfer.files].filter(f=>f.name.endsWith('.csv'));
+  if(files.length) handleFiles(files);
+});
+fileInput.addEventListener('change', e => handleFiles([...e.target.files]));
+
+function handleFiles(files) {
+  statusEl.textContent = `Loaded: ${files.map(f=>f.name).join(', ')} — re-analysis from uploaded files not yet implemented in this standalone version. Export from NOAA CDO and run the Python script to regenerate.`;
+  statusEl.style.color = '#ffd166';
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+renderAll();
+</script>
+</body>
+</html>
